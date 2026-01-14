@@ -42,7 +42,12 @@ func main() {
 
 	// CORS middleware
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.Server.AllowedOrigins,
+		//AllowOrigins:     cfg.Server.AllowedOrigins,
+		//AllowOrigins: []string{
+		//	"http://localhost:3000",
+		//	"https://*.app.github.dev", // This allows all GitHub Codespaces
+		//},
+		AllowAllOrigins:  true, 
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},

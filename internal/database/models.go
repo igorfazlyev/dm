@@ -31,7 +31,7 @@ type Patient struct {
 	LastName              string         `gorm:"not null" json:"last_name"`
 	DateOfBirth           *time.Time     `json:"date_of_birth"`
 	Phone                 string         `json:"phone"`
-	DiagnocatPatientID    string         `gorm:"uniqueIndex" json:"diagnocat_patient_id,omitempty"`
+	DiagnocatPatientID    *string        `gorm:"uniqueIndex" json:"diagnocat_patient_id,omitempty"`
 	PreferredCity         string         `json:"preferred_city"`
 	PreferredDistrict     string         `json:"preferred_district"`
 	PreferredPriceSegment string         `json:"preferred_price_segment"` // economy, business, premium

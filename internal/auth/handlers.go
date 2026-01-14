@@ -52,6 +52,14 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	// Start transaction
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// Create user
 	user := database.User{
 		Email:        req.Email,
@@ -60,7 +68,8 @@ func (h *Handler) Register(c *gin.Context) {
 		IsActive:     true,
 	}
 
-	if err := database.DB.Create(&user).Error; err != nil {
+	if err := tx.Create(&user).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
 		return
 	}
@@ -72,13 +81,21 @@ func (h *Handler) Register(c *gin.Context) {
 			FirstName: req.FirstName,
 			LastName:  req.LastName,
 		}
-		if err := database.DB.Create(&patient).Error; err != nil {
+		if err := tx.Create(&patient).Error; err != nil {
+			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create patient profile"})
 			return
 		}
 	}
 
-	// Generate tokens
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete registration"})
+		return
+	}
+
+	// Generate tokens (after successful commit)
 	tokens, err := jwtpkg.GenerateTokenPair(
 		user.ID,
 		user.Email,

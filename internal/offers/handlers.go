@@ -16,11 +16,11 @@ func NewHandler() *Handler {
 }
 
 type CreateOfferRequestReq struct {
-	PlanVersionID     uuid.UUID   `json:"plan_version_id" binding:"required"`
-	SelectedItemIDs   []uuid.UUID `json:"selected_item_ids" binding:"required"`
-	PreferredCity     string      `json:"preferred_city"`
-	PreferredDistrict string      `json:"preferred_district"`
-	PriceSegment      string      `json:"price_segment"`
+	PlanVersionID     uuid.UUID `json:"plan_version_id" binding:"required"`
+	SelectedItemIDs   []string  `json:"selected_item_ids" binding:"required"`
+	PreferredCity     string    `json:"preferred_city"`
+	PreferredDistrict string    `json:"preferred_district"`
+	PriceSegment      string    `json:"price_segment"`
 }
 
 // CreateOfferRequest creates a request for offers from clinics
@@ -56,7 +56,7 @@ func (h *Handler) CreateOfferRequest(c *gin.Context) {
 	offerRequest := database.OfferRequest{
 		PatientID:         patient.ID,
 		PlanVersionID:     req.PlanVersionID,
-		SelectedItemIDs:   req.SelectedItemIDs,
+		SelectedItemIDs:   req.SelectedItemIDs, // Direct assignment
 		PreferredCity:     req.PreferredCity,
 		PreferredDistrict: req.PreferredDistrict,
 		PriceSegment:      req.PriceSegment,

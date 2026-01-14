@@ -140,16 +140,19 @@ type PriceListItem struct {
 
 // OfferRequest represents a patient's request for offers from clinics
 type OfferRequest struct {
-	ID                uuid.UUID   `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	PatientID         uuid.UUID   `gorm:"type:uuid;not null;index" json:"patient_id"`
-	PlanVersionID     uuid.UUID   `gorm:"type:uuid;not null;index" json:"plan_version_id"`
-	SelectedItemIDs   []uuid.UUID `gorm:"type:uuid[];not null" json:"selected_item_ids"` // Which plan items to include
-	PreferredCity     string      `json:"preferred_city"`
-	PreferredDistrict string      `json:"preferred_district"`
-	PriceSegment      string      `json:"price_segment"`
-	Status            string      `gorm:"default:'open'" json:"status"` // open, closed
-	CreatedAt         time.Time   `json:"created_at"`
-	UpdatedAt         time.Time   `json:"updated_at"`
+	ID            uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	PatientID     uuid.UUID `gorm:"type:uuid;not null;index" json:"patient_id"`
+	PlanVersionID uuid.UUID `gorm:"type:uuid;not null;index" json:"plan_version_id"`
+	//SelectedItemIDs   []uuid.UUID `gorm:"type:uuid[];not null" json:"selected_item_ids"` // Which plan items to include
+	//SelectedItemIDs   []uuid.UUID `gorm:"type:uuid[]" json:"selected_item_ids"`
+	//SelectedItemIDs   pq.StringArray
+	SelectedItemIDs   []string  `gorm:"type:jsonb;serializer:json" json:"selected_item_ids"`
+	PreferredCity     string    `json:"preferred_city"`
+	PreferredDistrict string    `json:"preferred_district"`
+	PriceSegment      string    `json:"price_segment"`
+	Status            string    `gorm:"default:'open'" json:"status"` // open, closed
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 
 	// Relationships
 	Patient     Patient     `gorm:"foreignKey:PatientID" json:"patient,omitempty"`

@@ -9,9 +9,10 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	JWT       JWTConfig
+	Diagnocat DiagnocatConfig
 }
 
 type ServerConfig struct {
@@ -34,6 +35,10 @@ type JWTConfig struct {
 	Secret          string
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
+}
+
+type DiagnocatConfig struct {
+	APIKey string
 }
 
 func Load() *Config {
@@ -62,6 +67,9 @@ func Load() *Config {
 			Secret:          getEnv("JWT_SECRET", "change-me-in-production"),
 			AccessTokenTTL:  24 * time.Hour,
 			RefreshTokenTTL: 7 * 24 * time.Hour,
+		},
+		Diagnocat: DiagnocatConfig{
+			APIKey: os.Getenv("DIAGNOCAT_API_KEY"),
 		},
 	}
 }

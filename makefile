@@ -1,28 +1,45 @@
-.PHONY: run build test docker-up docker-down migrate
+.PHONY: help dev build up down logs clean
 
-run:
-	go run cmd/api/main.go
+help:
+	@echo "Available commands:"
+	@echo "  make dev      - Start development environment"
+	@echo "  make build    - Build all containers"
+	@echo "  make up       - Start all services"
+	@echo "  make down     - Stop all services"
+	@echo "  make logs     - Follow logs"
+	@echo "  make clean    - Clean up containers and volumes"
+
+dev:
+	docker-compose up
 
 build:
-	go build -o bin/dental-api cmd/api/main.go
+	docker-compose build
 
-test:
-	go test -v ./...
-
-docker-up:
+up:
 	docker-compose up -d
 
-docker-down:
+down:
 	docker-compose down
 
-docker-logs:
-	docker-compose logs -f api
+logs:
+	docker-compose logs -f
 
-migrate:
-	go run cmd/api/main.go
+clean:
+	docker-compose down -v
+	rm -rf backend/tmp
+	rm -rf frontend/node_modules
+	rm -rf frontend/dist
 
-deps:
-	go mod download
-	go mod tidy
+# Backend specific
+backend-shell:
+	docker-compose exec backend sh
 
-.DEFAULT_GOAL := run
+backend-migrate:
+	docker-compose exec backend go run cmd/api/main.go migrate
+
+# Frontend specific
+frontend-shell:
+	docker-compose exec frontend sh
+
+frontend-install:
+	cd frontend && npm install

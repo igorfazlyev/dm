@@ -42,12 +42,7 @@ func main() {
 
 	// CORS middleware
 	router.Use(cors.New(cors.Config{
-		//AllowOrigins:     cfg.Server.AllowedOrigins,
-		//AllowOrigins: []string{
-		//	"http://localhost:3000",
-		//	"https://*.app.github.dev", // This allows all GitHub Codespaces
-		//},
-		AllowAllOrigins:  true, 
+		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -57,7 +52,7 @@ func main() {
 	// Initialize handlers
 	authHandler := auth.NewHandler(cfg)
 	patientsHandler := patients.NewHandler()
-	studiesHandler := studies.NewHandler()
+	studiesHandler := studies.NewHandler(cfg)
 	plansHandler := plans.NewHandler()
 	clinicsHandler := clinics.NewHandler()
 	offersHandler := offers.NewHandler()
@@ -84,6 +79,7 @@ func main() {
 		patientRoutes.Use(rbac.RequireRole(rbac.RolePatient))
 		{
 			patientRoutes.GET("/profile", patientsHandler.GetMyProfile)
+			patientRoutes.POST("/profile", patientsHandler.CreateMyProfile)
 			patientRoutes.PUT("/profile", patientsHandler.UpdateMyProfile)
 			patientRoutes.GET("/studies", patientsHandler.GetMyStudies)
 			patientRoutes.GET("/offer-requests", offersHandler.GetMyOfferRequests)
@@ -93,12 +89,25 @@ func main() {
 		}
 
 		// Study routes (patients and clinics)
+		// studyRoutes := protected.Group("/studies")
+		// {
+		// 	studyRoutes.POST("", rbac.RequireRole(rbac.RolePatient), studiesHandler.CreateStudy)
+		// 	studyRoutes.GET("/:id", studiesHandler.GetStudy)
+		// 	studyRoutes.PATCH("/:id/status", rbac.RequireRole(rbac.RoleAdmin), studiesHandler.UpdateStudyStatus)
+		// 	studyRoutes.GET("/:id/pdf", studiesHandler.GetStudyPDF)
+		// }
+
+		// Study routes (patients and clinics)
 		studyRoutes := protected.Group("/studies")
 		{
 			studyRoutes.POST("", rbac.RequireRole(rbac.RolePatient), studiesHandler.CreateStudy)
 			studyRoutes.GET("/:id", studiesHandler.GetStudy)
-			studyRoutes.PATCH("/:id/status", rbac.RequireRole(rbac.RoleAdmin), studiesHandler.UpdateStudyStatus)
-			studyRoutes.GET("/:id/pdf", studiesHandler.GetStudyPDF)
+			studyRoutes.GET("/:id/status", rbac.RequireRole(rbac.RolePatient), studiesHandler.CheckStudyStatus)
+			studyRoutes.GET("/:id/pdf", rbac.RequireRole(rbac.RolePatient), studiesHandler.GetStudyPDF)
+
+			// DICOM upload routes
+			studyRoutes.POST("/:id/upload/init", rbac.RequireRole(rbac.RolePatient), studiesHandler.InitiateDICOMUpload)
+			studyRoutes.POST("/:id/upload", rbac.RequireRole(rbac.RolePatient), studiesHandler.UploadDICOMFile)
 		}
 
 		// Treatment plan routes

@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: dental_postgres
+    container_name: dental-marketplace-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -15,27 +15,60 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - dental-network
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: dental_api
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: dental_marketplace
-      JWT_SECRET: development-secret-key
-      PORT: 8080
+  backend:
+    image: golang:1.25-alpine
+    container_name: dental-marketplace-backend
+    working_dir: /app
     ports:
       - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=dental_marketplace
+      - DB_SSLMODE=disable
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - DIAGNOCAT_API_URL=https://app2.diagnocat.ru/partner-api
+      - DIAGNOCAT_API_KEY=${DIAGNOCAT_API_KEY:-}
+      - DIAGNOCAT_EMAIL=${DIAGNOCAT_EMAIL:-}
+      - DIAGNOCAT_PASSWORD=${DIAGNOCAT_PASSWORD:-}
+      - PORT=8080
+      - ENVIRONMENT=development
+      - ALLOWED_ORIGINS=http://localhost:3000
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ./backend:/app
+      - go-modules:/go/pkg/mod
+    command: sh -c "go mod download && go run cmd/api/main.go"
+    networks:
+      - dental-network
+
+  frontend:
+    image: node:20-alpine
+    container_name: dental-marketplace-frontend
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api/v1
+    volumes:
+      - ./frontend:/app
+      - node-modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host"
+    networks:
+      - dental-network
 
 volumes:
   postgres_data:
+  go-modules:
+  node-modules:
+
+networks:
+  dental-network:
+    driver: bridge

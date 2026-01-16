@@ -1,22 +1,47 @@
 import { useState, useEffect } from 'react';
-import { Plus, FileText, Calendar, AlertCircle } from 'lucide-react';
+import { Plus, FileText, Calendar, AlertCircle, Upload, CheckCircle, Download } from 'lucide-react';
 import api from '../../lib/api';
 import t from '../../lib/translations';
 
 const Studies = () => {
   const [studies, setStudies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     modality: 'CBCT',
     study_date: new Date().toISOString().split('T')[0],
   });
   const [error, setError] = useState('');
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetchStudies();
   }, []);
+
+  // Poll for processing studies status
+  useEffect(() => {
+    const processingStudies = studies.filter(s => s.status === 'processing');
+    
+    if (processingStudies.length === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const study of processingStudies) {
+        try {
+          const response = await api.get(`/studies/${study.id}/status`);
+          if (response.data.status !== study.status) {
+            fetchStudies();
+            break;
+          }
+        } catch (error) {
+          console.error('Failed to check study status:', error);
+        }
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [studies]);
 
   const fetchStudies = async () => {
     try {
@@ -29,23 +54,88 @@ const Studies = () => {
     }
   };
 
-  const handleCreateStudy = async (e) => {
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.dcm')) {
+        setError('Пожалуйста, выберите файл .dcm');
+        return;
+      }
+      setSelectedFile(file);
+      setError('');
+    }
+  };
+
+  const handleCreateAndUpload = async (e) => {
     e.preventDefault();
+    
+    if (!selectedFile) {
+      setError('Пожалуйста, выберите файл для загрузки');
+      return;
+    }
+
+    setUploading(true);
     setError('');
-    setCreating(true);
+    setUploadProgress('Создание исследования...');
 
     try {
-      await api.post('/studies', formData);
-      setShowCreateModal(false);
-      setFormData({
-        modality: 'CBCT',
-        study_date: new Date().toISOString().split('T')[0],
+      // Step 1: Create study
+      const createResponse = await api.post('/studies', formData);
+      const studyId = createResponse.data.id;
+      
+      // Step 2: Initialize upload
+      setUploadProgress('Подготовка к загрузке...');
+      await api.post(`/studies/${studyId}/upload/init`);
+      
+      // Step 3: Upload file
+      setUploadProgress('Загрузка файла в Diagnocat...');
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', selectedFile);
+      
+      await api.post(`/studies/${studyId}/upload`, uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
-      fetchStudies();
+
+      setUploadProgress('✅ Готово! Анализ начался.');
+      
+      // Wait and close
+      setTimeout(() => {
+        setShowUploadModal(false);
+        setSelectedFile(null);
+        setUploadProgress(null);
+        setFormData({
+          modality: 'CBCT',
+          study_date: new Date().toISOString().split('T')[0],
+        });
+        fetchStudies();
+      }, 2000);
+
     } catch (err) {
-      setError(err.response?.data?.error || t.errors.failedToCreate);
+      setError(err.response?.data?.error || 'Не удалось создать исследование');
+      setUploadProgress(null);
     } finally {
-      setCreating(false);
+      setUploading(false);
+    }
+  };
+
+  const handleDownloadPDF = async (study) => {
+    try {
+      const response = await api.get(`/studies/${study.id}/pdf`, {
+        responseType: 'blob',
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `report_${study.id.slice(0, 8)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Не удалось скачать отчет');
     }
   };
 
@@ -72,7 +162,7 @@ const Studies = () => {
           <p className="text-gray-600 mt-2">{t.patient.studies.subtitle}</p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => setShowUploadModal(true)}
           className="btn-primary flex items-center gap-2"
         >
           <Plus className="w-5 h-5" />
@@ -86,7 +176,7 @@ const Studies = () => {
           <h3 className="text-lg font-medium text-gray-900 mb-2">{t.patient.studies.noStudies}</h3>
           <p className="text-gray-600 mb-4">{t.patient.studies.noStudiesText}</p>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => setShowUploadModal(true)}
             className="btn-primary inline-flex items-center gap-2"
           >
             <Plus className="w-5 h-5" />
@@ -121,21 +211,36 @@ const Studies = () => {
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <button className="text-primary-600 hover:text-primary-700 font-medium text-sm">
-                  {t.common.viewDetails}
-                </button>
+              <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
+                {study.status === 'processing' && (
+                  <div className="flex items-center gap-2 text-yellow-600 text-sm">
+                    <div className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin" />
+                    Обработка...
+                  </div>
+                )}
+                {study.status === 'completed' && (
+                  <button 
+                    onClick={() => handleDownloadPDF(study)}
+                    className="text-green-600 hover:text-green-700 font-medium text-sm flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Скачать отчет
+                  </button>
+                )}
+                {study.status === 'failed' && (
+                  <span className="text-red-600 text-sm">Ошибка обработки</span>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Create Study Modal */}
-      {showCreateModal && (
+      {/* Create & Upload Modal - SINGLE STEP */}
+      {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">{t.patient.studies.createNewStudy}</h2>
+          <div className="bg-white rounded-lg max-w-lg w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Создать новое исследование</h2>
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 mb-4">
@@ -144,15 +249,28 @@ const Studies = () => {
               </div>
             )}
 
-            <form onSubmit={handleCreateStudy} className="space-y-4">
+            {uploadProgress && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2 mb-4">
+                {uploadProgress.includes('✅') ? (
+                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0 mt-0.5" />
+                )}
+                <p className="text-sm text-blue-800">{uploadProgress}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateAndUpload} className="space-y-4">
+              {/* Modality */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t.patient.studies.modality}
+                  Модальность
                 </label>
                 <select
                   value={formData.modality}
                   onChange={(e) => setFormData({ ...formData, modality: e.target.value })}
                   className="input"
+                  disabled={uploading}
                 >
                   <option value="CBCT">CBCT</option>
                   <option value="CT">CT</option>
@@ -160,9 +278,10 @@ const Studies = () => {
                 </select>
               </div>
 
+              {/* Study Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t.patient.studies.studyDate}
+                  Дата исследования
                 </label>
                 <input
                   type="date"
@@ -170,27 +289,85 @@ const Studies = () => {
                   onChange={(e) => setFormData({ ...formData, study_date: e.target.value })}
                   className="input"
                   required
+                  disabled={uploading}
                 />
               </div>
 
+              {/* File Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Загрузите DICOM файл *
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors">
+                  <input
+                    type="file"
+                    accept=".dcm"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="dicom-upload"
+                    disabled={uploading}
+                    required
+                  />
+                  <label
+                    htmlFor="dicom-upload"
+                    className={`cursor-pointer flex flex-col items-center ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <Upload className="w-12 h-12 text-gray-400 mb-2" />
+                    {selectedFile ? (
+                      <>
+                        <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-gray-700">Нажмите для выбора файла</p>
+                        <p className="text-xs text-gray-500 mt-1">или перетащите файл сюда</p>
+                        <p className="text-xs text-gray-400 mt-2">Поддерживаются только .dcm файлы</p>
+                      </>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {/* Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => {
-                    setShowCreateModal(false);
-                    setError('');
+                    if (!uploading) {
+                      setShowUploadModal(false);
+                      setSelectedFile(null);
+                      setError('');
+                      setUploadProgress(null);
+                      setFormData({
+                        modality: 'CBCT',
+                        study_date: new Date().toISOString().split('T')[0],
+                      });
+                    }
                   }}
                   className="btn-secondary flex-1"
-                  disabled={creating}
+                  disabled={uploading}
                 >
-                  {t.common.cancel}
+                  Отмена
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary flex-1"
-                  disabled={creating}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  disabled={uploading || !selectedFile}
                 >
-                  {creating ? t.patient.studies.creating : t.patient.studies.createStudy}
+                  {uploading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Загрузка...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      Создать исследование
+                    </>
+                  )}
                 </button>
               </div>
             </form>

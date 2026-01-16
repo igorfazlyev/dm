@@ -22,41 +22,94 @@ const Profile = () => {
     fetchProfile();
   }, []);
 
+  // const fetchProfile = async () => {
+  //   try {
+  //     const response = await api.get('/patient/profile');
+  //     setProfile(response.data);
+  //     setFormData({
+  //       first_name: response.data.first_name || '',
+  //       last_name: response.data.last_name || '',
+  //       phone: response.data.phone || '',
+  //       preferred_city: response.data.preferred_city || '',
+  //       preferred_district: response.data.preferred_district || '',
+  //       preferred_price_segment: response.data.preferred_price_segment || '',
+  //     });
+  //   } catch (error) {
+  //     console.error('Failed to fetch profile:', error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   setError('');
+  //   setMessage('');
+  //   setSaving(true);
+
+  //   try {
+  //     await api.put('/patient/profile', formData);
+  //     setMessage(t.patient.profile.profileUpdated);
+  //     fetchProfile();
+  //   } catch (err) {
+  //     setError(err.response?.data?.error || t.errors.failedToUpdate);
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
+
   const fetchProfile = async () => {
-    try {
-      const response = await api.get('/patient/profile');
+  try {
+    const response = await api.get('/patient/profile');
+    
+    // Check if profile exists
+    if (response.data.exists === false) {
+      setIsCreating(true);
+      setProfile(null);
+    } else {
       setProfile(response.data);
       setFormData({
         first_name: response.data.first_name || '',
         last_name: response.data.last_name || '',
+        date_of_birth: response.data.date_of_birth?.split('T')[0] || '',
         phone: response.data.phone || '',
         preferred_city: response.data.preferred_city || '',
         preferred_district: response.data.preferred_district || '',
-        preferred_price_segment: response.data.preferred_price_segment || '',
+        preferred_price_segment: response.data.preferred_price_segment || 'business',
       });
+        setIsCreating(false);
+      }
     } catch (error) {
-      console.error('Failed to fetch profile:', error);
+      if (error.response?.status === 404) {
+        setIsCreating(true);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
-    setSaving(true);
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setError('');
+      setMessage('');
+      setSaving(true);
 
-    try {
-      await api.put('/patient/profile', formData);
-      setMessage(t.patient.profile.profileUpdated);
-      fetchProfile();
-    } catch (err) {
-      setError(err.response?.data?.error || t.errors.failedToUpdate);
-    } finally {
-      setSaving(false);
-    }
-  };
+      try {
+        if (isCreating) {
+          await api.post('/patient/profile', formData);
+          setMessage(t.patient.profile.profileCreated);
+        } else {
+          await api.put('/patient/profile', formData);
+          setMessage(t.patient.profile.profileUpdated);
+        }
+        fetchProfile();
+      } catch (err) {
+        setError(err.response?.data?.error || t.errors.failedToUpdate);
+      } finally {
+        setSaving(false);
+      }
+    };
+
 
   if (loading) {
     return <div className="text-center py-12">{t.patient.profile.loadingProfile}</div>;

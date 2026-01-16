@@ -45,25 +45,49 @@ type Patient struct {
 }
 
 // Study represents a DICOM study (one imaging session)
+// type Study struct {
+// 	ID                  uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+// 	PatientID           uuid.UUID      `gorm:"type:uuid;not null;index" json:"patient_id"`
+// 	DiagnocatStudyUID   string         `gorm:"uniqueIndex" json:"diagnocat_study_uid,omitempty"`
+// 	Status              string         `gorm:"not null;index;default:'created'" json:"status"` // created, uploading, uploaded, processing, completed, failed
+// 	Modality            string         `json:"modality"`                                       // CBCT, CT, etc.
+// 	StudyDate           *time.Time     `json:"study_date"`
+// 	UploadedAt          *time.Time     `json:"uploaded_at"`
+// 	CompletedAt         *time.Time     `json:"completed_at"`
+// 	ErrorMessage        string         `json:"error_message,omitempty"`
+// 	DiagnocatResultJSON map[string]any `gorm:"type:jsonb" json:"diagnocat_result,omitempty"`
+// 	DiagnocatReportPDF  []byte         `json:"-"` // Store PDF binary
+// 	CreatedAt           time.Time      `json:"created_at"`
+// 	UpdatedAt           time.Time      `json:"updated_at"`
+
+// 	// Relationships
+// 	Patient      Patient       `gorm:"foreignKey:PatientID" json:"patient,omitempty"`
+// 	PlanVersions []PlanVersion `gorm:"foreignKey:StudyID" json:"plan_versions,omitempty"`
+// }
+// Study represents a DICOM study (one imaging session)
 type Study struct {
-	ID                  uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	PatientID           uuid.UUID      `gorm:"type:uuid;not null;index" json:"patient_id"`
-	DiagnocatStudyUID   string         `gorm:"uniqueIndex" json:"diagnocat_study_uid,omitempty"`
-	Status              string         `gorm:"not null;index;default:'created'" json:"status"` // created, uploading, uploaded, processing, completed, failed
-	Modality            string         `json:"modality"`                                       // CBCT, CT, etc.
-	StudyDate           *time.Time     `json:"study_date"`
-	UploadedAt          *time.Time     `json:"uploaded_at"`
-	CompletedAt         *time.Time     `json:"completed_at"`
-	ErrorMessage        string         `json:"error_message,omitempty"`
-	DiagnocatResultJSON map[string]any `gorm:"type:jsonb" json:"diagnocat_result,omitempty"`
-	DiagnocatReportPDF  []byte         `json:"-"` // Store PDF binary
-	CreatedAt           time.Time      `json:"created_at"`
-	UpdatedAt           time.Time      `json:"updated_at"`
+	ID                   uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	PatientID            uuid.UUID      `gorm:"type:uuid;not null;index" json:"patient_id"`
+	DiagnocatStudyUID    *string        `gorm:"uniqueIndex" json:"diagnocat_study_uid,omitempty"`
+	DiagnocatSessionID   *string        `json:"diagnocat_session_id,omitempty"`    // Upload session ID
+	DiagnocatReportURL   *string        `json:"diagnocat_report_url,omitempty"`    // PDF URL from Diagnocat
+	Status               string         `gorm:"not null;index;default:'created'" json:"status"` // created, uploading, processing, completed, failed
+	Modality             string         `json:"modality"`                                        // CBCT, CT, etc.
+	StudyDate            *string        `json:"study_date"`                                      // Changed from *time.Time to *string for flexibility
+	UploadedAt           *time.Time     `json:"uploaded_at"`
+	CompletedAt          *time.Time     `json:"completed_at"`
+	ErrorMessage         string         `json:"error_message,omitempty"`
+	DiagnocatResultJSON  map[string]any `gorm:"type:jsonb" json:"diagnocat_result,omitempty"`
+	DiagnocatReportPDF   []byte         `json:"-"` // Store PDF binary (optional, can be large)
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	DeletedAt            gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
 	Patient      Patient       `gorm:"foreignKey:PatientID" json:"patient,omitempty"`
 	PlanVersions []PlanVersion `gorm:"foreignKey:StudyID" json:"plan_versions,omitempty"`
 }
+
 
 // PlanVersion represents an immutable snapshot of a treatment plan
 type PlanVersion struct {

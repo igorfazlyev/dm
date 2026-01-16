@@ -2,8 +2,10 @@ package patients
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/igorfazlyev/dm/internal/database"
 	"github.com/igorfazlyev/dm/internal/rbac"
 )
@@ -44,6 +46,60 @@ func (h *Handler) GetMyProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, patient)
+}
+
+func (h *Handler) CreateMyProfile(c *gin.Context) {
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req struct {
+		FirstName             string     `json:"first_name" binding:"required"`
+		LastName              string     `json:"last_name" binding:"required"`
+		DateOfBirth           *time.Time `json:"date_of_birth"`
+		Phone                 string     `json:"phone" binding:"required"`
+		PreferredCity         string     `json:"preferred_city"`
+		PreferredDistrict     string     `json:"preferred_district"`
+		PreferredPriceSegment string     `json:"preferred_price_segment"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if profile already exists
+	var existingPatient database.Patient
+	if err := database.DB.Where("user_id = ?", userID).First(&existingPatient).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "profile already exists, use PUT to update"})
+		return
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	patient := database.Patient{
+		UserID:                userUUID,
+		FirstName:             req.FirstName,
+		LastName:              req.LastName,
+		DateOfBirth:           req.DateOfBirth,
+		Phone:                 req.Phone,
+		PreferredCity:         req.PreferredCity,
+		PreferredDistrict:     req.PreferredDistrict,
+		PreferredPriceSegment: req.PreferredPriceSegment,
+	}
+
+	if err := database.DB.Create(&patient).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create profile"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, patient)
 }
 
 // UpdateMyProfile updates the current patient's profile

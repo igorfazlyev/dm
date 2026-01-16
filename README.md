@@ -18,3 +18,30 @@ make run
 
 # Or run directly
 go run cmd/api/main.go
+
+
+# Dental Marketplace Platform
+
+A comprehensive platform connecting dental patients with clinics, featuring AI-powered CBCT analysis via Diagnocat integration.
+
+## Project Structure
+
+#dev commands
+# Start everything
+docker-compose up
+
+# Or use makefile
+make dev
+
+# Backend logs
+docker-compose logs -f backend
+
+# Frontend logs
+docker-compose logs -f frontend
+
+# Access backend shell
+docker-compose exec backend sh
+
+# Access frontend shell
+docker-compose exec frontend sh
+
